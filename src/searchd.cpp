@@ -7737,6 +7737,15 @@ void SendResult ( int iVer, NetOutputBuffer_c & tOut, const CSphQueryResult * pR
 							assert ( pStrings );
 							int iLen = sphUnpackStr ( pStrings+uOffset, &pStr );
 							tOut.SendDword ( iLen );
+//							if ( 9 == j){
+//								printf("j:%d   iLen:%d    uOffset:%d\n", j, iLen, uOffset);
+//								
+//								char ff[256] = {0};
+//								
+//								strncpy(ff, (char*)pStr, iLen);
+//								
+//								printf("pStr:%s\n", ff);
+//						}
 							tOut.SendBytes ( pStr, iLen );
 						}
 						break;
@@ -9680,13 +9689,6 @@ void SearchHandler_c::RunLocalSearches ( ISphMatchSorter * pLocalSorter, const c
 		RunLocalSearchesMT();
 		return;
 	}
-
-
-		//FILE* wyy = fopen("/tmp/wyy.txt", "a+");
-		//fputs("ha========================================ha\n", wyy);
-		
-		//fclose(wyy);
-		
 		
 	CSphVector <int> dLocked;
 	ARRAY_FOREACH ( iLocal, m_dLocal )

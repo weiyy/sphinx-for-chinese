@@ -3681,6 +3681,7 @@ ISphExpr * ExprParser_t::CreateTree ( int iNode )
 	else if ( tNode.m_eArgType==SPH_ATTR_BIGINT )	return new _classname##Int64_c ( pLeft, pRight ); \
 	else											return new _classname##Float_c ( pLeft, pRight );
 
+printf("tNode:%d\n", tNode.m_iToken);
 	switch ( tNode.m_iToken )
 	{
 		case TOK_ATTR_INT:		return new Expr_GetInt_c ( tNode.m_tLocator, tNode.m_iLocator );

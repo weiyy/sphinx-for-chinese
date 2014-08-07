@@ -2244,6 +2244,15 @@ template < bool IS_QUERY >
 class CSphTokenizer_UTF8Chinese : public CSphTokenizer_UTF8_Base
 {
 public:
+	
+	//////////////////////////////
+	int m_totalParsedWordsNum; //总共得到的分词结果
+	int m_processedParsedWordsNum; //已经处理的分词个数
+	bool m_needMoreParser; //标示是否需要更细粒度分词
+	const char * m_pTempCur; //标示在m_BestWord中的位置
+	char m_BestWord[3 * SPH_MAX_WORD_LEN + 3]; //记录使用mmseg得到的最优分词结果
+	int m_iBestWordLength; //最优分词结果的长度
+	////////////////////////////////
                                                                 CSphTokenizer_UTF8Chinese ();
         virtual bool                            SetChineseDictionary ( const char * sConfig, CSphString & sError );
         virtual void                            SetBuffer ( const BYTE * sBuffer, int iLength );
@@ -6395,6 +6404,10 @@ CSphTokenizer_UTF8Chinese<IS_QUERY>::CSphTokenizer_UTF8Chinese ()
         CSphString sTmp;
         SetCaseFolding ( SPHINX_DEFAULT_UTF8_TABLE, sTmp );
         m_bHasBlend = false;
+        
+        //////////////////////////
+	m_needMoreParser = false;
+       ////////////////////////
 }
 
 
@@ -6711,9 +6724,64 @@ BYTE * CSphTokenizer_UTF8Chinese<IS_QUERY>::GetToken ()
         size_t iWordLength=0;
         int iNum;
 
+/////////////////////////////////////////////
+       if(!IS_QUERY && m_needMoreParser) { //对最优结果进行进一步细分
+                while (m_pTempCur < m_BestWord + m_iBestWordLength) {
+                        if(m_processedParsedWordsNum == m_totalParsedWordsNum) {
+                                size_t minWordLength = m_pResultPair[0].length;
+                                for(int i = 1; i < m_totalParsedWordsNum; i++) {
+                                        if(m_pResultPair[i].length < minWordLength) {
+                                                minWordLength = m_pResultPair[i].length;
+                                        }
+                                }
+                                m_pTempCur += minWordLength;
+                                m_pText=(Darts::DoubleArray::key_type *)(m_pCur + (m_pTempCur - m_BestWord));
+                                iNum = m_tDa.commonPrefixSearch(m_pText, m_pResultPair, 256, m_pBufferMax-(m_pCur+(m_pTempCur-m_BestWord)));
+                                m_totalParsedWordsNum = iNum;
+                                m_processedParsedWordsNum = 0;
+                        } else {
+                                iWordLength = m_pResultPair[m_processedParsedWordsNum].length;
+                                m_processedParsedWordsNum++;
+                                if (m_pTempCur == m_BestWord && iWordLength == m_iBestWordLength) { //是最优分词结果,跳过
+                                        continue;
+                                }
+                                memcpy(m_sAccum, m_pText, iWordLength);
+                                m_sAccum[iWordLength]='\0';
+
+                                m_pTokenStart = m_pCur + (m_pTempCur - m_BestWord);
+                                m_pTokenEnd = m_pCur + (m_pTempCur - m_BestWord) + iWordLength;
+                                return m_sAccum;
+                        }
+                }
+                m_pCur += m_iBestWordLength;
+                m_needMoreParser = false;
+                iWordLength = 0;
+        }
+
+/////////////////////////////////////////////
+
         while(iWordLength==0){
                 m_pText=(Darts::DoubleArray::key_type *)m_pCur;
                 iNum = m_tDa.commonPrefixSearch(m_pText, m_pResultPair, 256, m_pBufferMax-m_pCur);
+
+//////////////////////////////////////////////
+		if(!IS_QUERY && iNum > 1) {
+            m_iBestWordLength=getBestWordLength(m_pText, m_pBufferMax-m_pCur); //使用mmseg得到最优分词结果
+            memcpy(m_sAccum, m_pText, m_iBestWordLength);
+            m_sAccum[m_iBestWordLength]='\0';
+            m_pTokenStart = m_pCur;
+            m_pTokenEnd = m_pCur + m_iBestWordLength;
+
+            m_totalParsedWordsNum = iNum;
+            m_needMoreParser = true;
+            m_processedParsedWordsNum = 0;
+            memcpy(m_BestWord, m_pText, m_iBestWordLength);
+            m_BestWord[m_iBestWordLength]='\0';
+            m_pTempCur = m_BestWord;
+            return m_sAccum;
+    }
+
+/////////////////////////////////////////////
 
                 if( iNum == 0) {
 
@@ -6736,6 +6804,7 @@ BYTE * CSphTokenizer_UTF8Chinese<IS_QUERY>::GetToken ()
                 {
                         iCodePoint = GetCodepoint(); // advances m_pCur
                         iCode = m_tLC.ToLower ( iCodePoint );
+                        //iCode = iCodePoint;
                 }
 
                 // handle escaping
@@ -6832,6 +6901,26 @@ BYTE * CSphTokenizer_UTF8Chinese<IS_QUERY>::GetToken ()
 
                 if ( iCode==0 || m_bBoundary )
                 {
+                	
+                	if ( iCodePoint > 128 && (iCodePoint < 0x4e00 || iCodePoint > 0x9fbb) && !m_bBoundary ){//不是中文和边界 当做外文
+                	    if ( m_iAccum==0 )
+                        m_pTokenStart = pCur;
+
+		                if_const ( IS_BLEND )
+		                        if_const (!( IS_QUERY && !m_iAccum && sphIsModifier ( iCode & MASK_CODEPOINT ) ) )
+		                                m_bNonBlended = m_bNonBlended || !( iCode & FLAG_CODEPOINT_BLEND );
+
+		                if ( m_iAccum<SPH_MAX_WORD_LEN && ( m_pAccum-m_sAccum+SPH_MAX_UTF8_BYTES<=(int)sizeof(m_sAccum) ) )
+		                {
+		                        iCodePoint &= MASK_CODEPOINT;
+		                        m_iAccum++;
+		                        SPH_UTF8_ENCODE ( m_pAccum, iCodePoint );
+		                }
+		                
+		                FlushAccum ();
+		                return m_sAccum;		                
+                	}
+                	
                         FlushAccum ();
                         if_const ( IS_BLEND && !BlendAdjust ( pCur ) )
                                 continue;
@@ -6846,7 +6935,7 @@ BYTE * CSphTokenizer_UTF8Chinese<IS_QUERY>::GetToken ()
                         } else
                         {
                                 m_pTokenEnd = pCur;
-                                if(m_tDa.commonPrefixSearch((Darts::DoubleArray::key_type *)(pCur), m_pResultPair, 256, m_pBufferMax-m_pCur)>0) {
+                                if(m_tDa.commonPrefixSearch((Darts::DoubleArray::key_type *)(pCur), m_pResultPair, 256, IS_QUERY ? m_pBufferMax-m_pCur-1 : m_pBufferMax-m_pCur)>0) {
                                         m_pCur=pCur;
                                 }
 
@@ -6916,6 +7005,10 @@ BYTE * CSphTokenizer_UTF8Chinese<IS_QUERY>::GetToken ()
                         m_iAccum++;
                         SPH_UTF8_ENCODE ( m_pAccum, iCode );
                 }
+                
+                 //FlushAccum ();
+                 //return m_sAccum;
+                 
         }
         
 //end=====================================================================

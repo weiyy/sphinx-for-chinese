@@ -6318,7 +6318,6 @@ struct RankerState_ProximityBM25Exact_fn : public ISphExtra
 	void Update ( const ExtHit_t * pHlist )
 	{
 		// upd LCS
-		//printf("uuuuu:%d\n", ++uuuuu);
 		DWORD uField = HITMAN::GetField ( pHlist->m_uHitpos );
 		int iLcs = HITMAN::GetLCS ( pHlist->m_uHitpos );
 		int iDelta = iLcs - pHlist->m_uQuerypos;
@@ -6366,8 +6365,8 @@ struct RankerState_ProximityBM25Exact_fn : public ISphExtra
 			uRank += ( 4*m_uLCS[i] + ((m_uHeadHit>>i)&1) + 2*((m_uExactHit>>i)&1) )*m_pWeights[i];
 			
 			if (uRank > 8){
-			printf("m_pWeights[%d]:%d\n", i, m_pWeights[i]);
-			printf("m_uLCS[i]:%d, m_uHeadHit: %d, m_uExactHit:%d, uRank:%d\n", m_uLCS[i], m_uHeadHit, m_uExactHit, uRank);
+			//printf("m_pWeights[%d]:%d\n", i, m_pWeights[i]);
+			//printf("m_uLCS[i]:%d, m_uHeadHit: %d, m_uExactHit:%d, uRank:%d\n", m_uLCS[i], m_uHeadHit, m_uExactHit, uRank);
 		}
 			m_uLCS[i] = 0;
 		}
@@ -7887,11 +7886,6 @@ bool RankerState_Expr_fn<NEED_PACKEDFACTORS, HANDLE_DUPES>::Init ( int iFields, 
 	if ( !m_pExpr )
 		return false;
 		
-/*		char cmd[256] = {0};
-		sprintf(cmd, "m_eExprType:%d,  SPH_ATTR_INTEGER:%d,  SPH_ATTR_BIGINT:%d,  SPH_ATTR_FLOAT:%d\n", m_eExprType, SPH_ATTR_INTEGER, SPH_ATTR_BIGINT, SPH_ATTR_FLOAT);
-	 FILE *fff = fopen("fuckkkk", "a+");
-	 fputs(cmd, fff);
-	 fclose(fff);*/
 	//if ( m_eExprType!=SPH_ATTR_INTEGER && m_eExprType!=SPH_ATTR_FLOAT )
 	if ( m_eExprType!=SPH_ATTR_INTEGER && m_eExprType!=SPH_ATTR_BIGINT && m_eExprType!=SPH_ATTR_FLOAT )
 	{
@@ -8453,7 +8447,6 @@ bool RankerState_Expr_fn<NEED_PACKEDFACTORS, HANDLE_DUPES>::ExtraDataImpl ( Extr
 		return false;
 }
 
-
 /// finish document processing, compute weight from factors
 template < bool NEED_PACKEDFACTORS, bool HANDLE_DUPES >
 //DWORD RankerState_Expr_fn<NEED_PACKEDFACTORS, HANDLE_DUPES>::Finalize ( const CSphMatch & tMatch )
@@ -8495,9 +8488,13 @@ uint64_t RankerState_Expr_fn<NEED_PACKEDFACTORS, HANDLE_DUPES>::Finalize ( const
 		if (m_pWeights[i] > 1){
 			uRank += ( 2*m_uLCS[i] + ((m_uHeadHit>>i)&1) + 2*((m_uExactHit>>i)&1) );
 			
-			//printf("m_pWeights[%d]:%d\n", i, m_pWeights[i]);
-			//printf("m_uLCS[i]:%d, m_uHeadHit: %d, m_uExactHit:%d, uRank:%u\n", m_uLCS[i], m_uHeadHit, m_uExactHit, uRank);
-		
+			if (m_uExactHit > 0){
+				//const BYTE * pStrings = dTag2Pools [ tMatch.m_iTag ].m_pStrings;
+				//const CSphColumnInfo & tAttr = tMatch.m_tSchema.GetAttr(9);
+
+				//printf("tAttr:%s\n", tAttr.m_sName.cstr());
+				//printf("m_uLCS[i]:%d, m_uHeadHit: %d, m_uExactHit:%d, uRank:%u\n", m_uLCS[i], m_uHeadHit, m_uExactHit, uRank);
+			}
 		}
 		m_uLCS[i] = 0;
 	}
@@ -8508,8 +8505,8 @@ uint64_t RankerState_Expr_fn<NEED_PACKEDFACTORS, HANDLE_DUPES>::Finalize ( const
 	ResetDocFactors();
 
 	// done
-	uint64_t kk = uRank << 48;
-	printf("uRes:%d sizeof(kk):%ld, uRank:%u kk : %ld\n", uRes, sizeof(kk), uRank, kk);
+	//uint64_t kk = uRank << 48;
+	//printf("uRes:%d sizeof(kk):%ld, uRank:%u kk : %ld\n", uRes, sizeof(kk), uRank, kk);
 	return uRes + (uRank << 48);
 	//return uRes + uRank;
 }
