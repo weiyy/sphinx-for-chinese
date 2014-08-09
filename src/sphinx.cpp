@@ -2252,6 +2252,12 @@ public:
 	const char * m_pTempCur; //标示在m_BestWord中的位置
 	char m_BestWord[3 * SPH_MAX_WORD_LEN + 3]; //记录使用mmseg得到的最优分词结果
 	int m_iBestWordLength; //最优分词结果的长度
+	
+//	const BYTE *		m_pBuffer;							///< my buffer
+//	const BYTE *		m_pBufferMax;
+	
+	
+				virtual BYTE *    GetSingleToken (int* wyy);
 	////////////////////////////////
                                                                 CSphTokenizer_UTF8Chinese ();
         virtual bool                            SetChineseDictionary ( const char * sConfig, CSphString & sError );
@@ -6723,7 +6729,7 @@ BYTE * CSphTokenizer_UTF8Chinese<IS_QUERY>::GetToken ()
 
         size_t iWordLength=0;
         int iNum;
-
+/*
 /////////////////////////////////////////////
        if(!IS_QUERY && m_needMoreParser) { //对最优结果进行进一步细分
                 while (m_pTempCur < m_BestWord + m_iBestWordLength) {
@@ -6740,8 +6746,8 @@ BYTE * CSphTokenizer_UTF8Chinese<IS_QUERY>::GetToken ()
                                 m_totalParsedWordsNum = iNum;
                                 m_processedParsedWordsNum = 0;
                         } else {
-                                iWordLength = m_pResultPair[m_processedParsedWordsNum].length;
-                                m_processedParsedWordsNum++;
+                                iWordLength = m_pResultPair[m_processedParsedWordsNum++].length;
+                                //m_processedParsedWordsNum++;
                                 if (m_pTempCur == m_BestWord && iWordLength == m_iBestWordLength) { //是最优分词结果,跳过
                                         continue;
                                 }
@@ -6759,11 +6765,11 @@ BYTE * CSphTokenizer_UTF8Chinese<IS_QUERY>::GetToken ()
         }
 
 /////////////////////////////////////////////
-
+*/
         while(iWordLength==0){
                 m_pText=(Darts::DoubleArray::key_type *)m_pCur;
                 iNum = m_tDa.commonPrefixSearch(m_pText, m_pResultPair, 256, m_pBufferMax-m_pCur);
-
+/*
 //////////////////////////////////////////////
 		if(!IS_QUERY && iNum > 1) {
             m_iBestWordLength=getBestWordLength(m_pText, m_pBufferMax-m_pCur); //使用mmseg得到最优分词结果
@@ -6782,7 +6788,7 @@ BYTE * CSphTokenizer_UTF8Chinese<IS_QUERY>::GetToken ()
     }
 
 /////////////////////////////////////////////
-
+*/
                 if( iNum == 0) {
 
 //original utf8 handler, it is borrowed here to process unmatched characters
@@ -6899,16 +6905,23 @@ BYTE * CSphTokenizer_UTF8Chinese<IS_QUERY>::GetToken ()
                 }
                 m_bBoundary = ( iCode & FLAG_CODEPOINT_BOUNDARY )!=0;
 
-                if ( iCode==0 || m_bBoundary )
+                if ( iCode==0 || (iCodePoint > 47 && iCodePoint < 58) || m_bBoundary )
                 {
                 	
-                	if ( iCodePoint > 128 && (iCodePoint < 0x4e00 || iCodePoint > 0x9fbb) && !m_bBoundary ){//不是中文和边界 当做外文
-                	    if ( m_iAccum==0 )
-                        m_pTokenStart = pCur;
-
+                	if ( (iCodePoint > 256 || (iCodePoint > 47 && iCodePoint < 58))  && (iCodePoint < 0x4e00 || iCodePoint > 0x9fbb) && !m_bBoundary ){//不是中文和边界 当做外文
 		                if_const ( IS_BLEND )
 		                        if_const (!( IS_QUERY && !m_iAccum && sphIsModifier ( iCode & MASK_CODEPOINT ) ) )
 		                                m_bNonBlended = m_bNonBlended || !( iCode & FLAG_CODEPOINT_BLEND );
+                	    
+                	    if ( m_iAccum==0 )
+                        m_pTokenStart = pCur;
+                       else{
+                       		m_pCur = pCur;
+					                m_pTokenEnd = pCur;
+					                FlushAccum ();
+					                return m_sAccum;
+	
+                      }
 
 		                if ( m_iAccum<SPH_MAX_WORD_LEN && ( m_pAccum-m_sAccum+SPH_MAX_UTF8_BYTES<=(int)sizeof(m_sAccum) ) )
 		                {
@@ -6917,6 +6930,7 @@ BYTE * CSphTokenizer_UTF8Chinese<IS_QUERY>::GetToken ()
 		                        SPH_UTF8_ENCODE ( m_pAccum, iCodePoint );
 		                }
 		                
+		                m_pTokenEnd = pCur;
 		                FlushAccum ();
 		                return m_sAccum;		                
                 	}
@@ -7000,15 +7014,32 @@ BYTE * CSphTokenizer_UTF8Chinese<IS_QUERY>::GetToken ()
                 // manual inlining of utf8 encoder gives us a few extra percent
                 // which is important here, this is a hotspot
                 if ( m_iAccum<SPH_MAX_WORD_LEN && ( m_pAccum-m_sAccum+SPH_MAX_UTF8_BYTES<=(int)sizeof(m_sAccum) ) )
+                //=====
+                //if ( m_iAccum<SPH_MAX_WORD_LEN && ( m_pAccum-m_sAccum+SPH_MAX_UTF8_BYTES<=(int)sizeof(m_sAccum) ) && (iCode > 0x40)) //'A' == 0x41
+                //=====
                 {
                         iCode &= MASK_CODEPOINT;
                         m_iAccum++;
                         SPH_UTF8_ENCODE ( m_pAccum, iCode );
+                        
+                        //====
+                        continue;
+                        //===
                 }
                 
-                 //FlushAccum ();
-                 //return m_sAccum;
-                 
+ /*               //======
+                if ( m_iAccum<SPH_MAX_WORD_LEN && ( m_pAccum-m_sAccum+SPH_MAX_UTF8_BYTES<=(int)sizeof(m_sAccum) ) && m_iAccum==0 )
+                {
+                        iCode &= MASK_CODEPOINT;
+                        m_iAccum++;
+                        SPH_UTF8_ENCODE ( m_pAccum, iCode );
+
+                }
+                else
+                	m_pCur = pCur;
+                FlushAccum ();
+                return m_sAccum;
+               //======  */
         }
         
 //end=====================================================================
@@ -7085,7 +7116,255 @@ int CSphTokenizer_UTF8Chinese<IS_QUERY>::GetCodepointLength ( int iCode ) const
 }
 //===========================================================================================
 
-
+//===============================================add by weiyy 2014-08-08
+template < bool IS_QUERY >
+BYTE * CSphTokenizer_UTF8Chinese<IS_QUERY>::GetSingleToken (int* wyy)
+{
+	m_bWasSpecial = false;
+	m_bBlended = false;
+	m_iOvershortCount = 0;
+	m_bTokenBoundary = false;
+	
+	//==============
+	if (*wyy){
+		*wyy = 0;
+		m_pCur = m_pBuffer;	
+	}
+	if ( m_dSynonyms.GetLength() )
+	        return GetTokenSyn ( IS_QUERY );
+	bool IS_BLEND = m_bHasBlend;
+	
+	// return pending blending variants
+	if_const ( IS_BLEND )
+	{
+	        BYTE * pVar = GetBlendedVariant ();
+	        if ( pVar )
+	                return pVar;
+	        m_bBlendedPart = ( m_pBlendEnd!=NULL );
+	}
+	
+	// in query mode, lets capture (soft-whitespace hard-whitespace) sequences and adjust overshort counter
+	// sample queries would be (one NEAR $$$) or (one | $$$ two) where $ is not a valid character
+	bool bGotNonToken = ( !IS_QUERY || m_bPhrase ); // only do this in query mode, never in indexing mode, never within phrases
+	bool bGotSoft = false; // hey Beavis he said soft huh huhhuh
+	
+	
+	m_pText=(Darts::DoubleArray::key_type *)m_pCur;
+	
+	for ( ;; )
+	{
+	        // get next codepoint
+	        const BYTE * pCur = m_pCur; // to redo special char, if there's a token already
+	
+	        int iCodePoint;
+	        int iCode;
+	        if ( pCur<m_pBufferMax && *pCur<128 )
+	        {
+	                iCodePoint = *m_pCur++;
+	                iCode = m_tLC.m_pChunk[0][iCodePoint];
+	        } else
+	        {
+	                iCodePoint = GetCodepoint(); // advances m_pCur
+	                iCode = m_tLC.ToLower ( iCodePoint );
+	                //iCode = iCodePoint;
+	        }
+	
+	        // handle escaping
+	        bool bWasEscaped = ( IS_QUERY && iCodePoint=='\\' ); // whether current codepoint was escaped
+	        if ( bWasEscaped )
+	        {
+	                iCodePoint = GetCodepoint();
+	                iCode = m_tLC.ToLower ( iCodePoint );
+	                if ( !Special2Simple ( iCode ) )
+	                        iCode = 0;
+	        }
+	
+	        // handle eof
+	        if ( iCode<0 )
+	        {
+	                // skip trailing short word
+	                FlushAccum ();
+	                if ( m_iLastTokenLen<m_tSettings.m_iMinWordLen )
+	                {
+	                        if ( !m_bShortTokenFilter || !ShortTokenFilter ( m_sAccum, m_iLastTokenLen ) )
+	                        {
+	                                if ( m_iLastTokenLen )
+	                                        m_iOvershortCount++;
+	                                m_iLastTokenLen = 0;
+	                                if_const ( IS_BLEND )
+	                                        BlendAdjust ( pCur );
+	                                return NULL;
+	                        }
+	                }
+	
+	                // keep token end here as BlendAdjust might change m_pCur
+	                m_pTokenEnd = m_pCur;
+	
+	                // return trailing word
+	                if_const ( IS_BLEND && !BlendAdjust ( pCur ) )
+	                        return NULL;
+	                if_const ( IS_BLEND && m_bBlended )
+	                        return GetBlendedVariant();
+	                return m_sAccum;
+	        }
+	
+	        // handle all the flags..
+	        if_const ( IS_QUERY )
+	                iCode = CodepointArbitrationQ ( iCode, bWasEscaped, *m_pCur );
+	        else if ( m_bDetectSentences )
+	                iCode = CodepointArbitrationI ( iCode );
+	
+	        // handle ignored chars
+	        if ( iCode & FLAG_CODEPOINT_IGNORE )
+	                continue;
+	
+	        // handle blended characters
+	        if_const ( IS_BLEND && ( iCode & FLAG_CODEPOINT_BLEND ) )
+	        {
+	                if ( m_pBlendEnd )
+	                        iCode = 0;
+	                else
+	                {
+	                        m_bBlended = true;
+	                        m_pBlendStart = m_iAccum ? m_pTokenStart : pCur;
+	                }
+	        }
+	
+	        // handle soft-whitespace-only tokens
+	        if ( !bGotNonToken && !m_iAccum )
+	        {
+	                if ( !bGotSoft )
+	                {
+	                        // detect opening soft whitespace
+	                        if ( ( iCode==0 && !( iCode & MASK_FLAGS ) && !IsWhitespace ( iCodePoint ) )
+	                                || ( ( iCode & FLAG_CODEPOINT_BLEND ) && !m_iAccum ) )
+	                        {
+	                                bGotSoft = true;
+	                        }
+	                } else
+	                {
+	                        // detect closing hard whitespace or special
+	                        // (if there was anything meaningful in the meantime, we must never get past the outer if!)
+	                        if ( IsWhitespace ( iCodePoint ) || ( iCode & FLAG_CODEPOINT_SPECIAL ) )
+	                        {
+	                                m_iOvershortCount++;
+	                                bGotNonToken = true;
+	                        }
+	                }
+	        }
+	
+	        // handle whitespace and boundary
+	        if ( m_bBoundary && ( iCode==0 ) )
+	        {
+	                m_bTokenBoundary = true;
+	                m_iBoundaryOffset = pCur - m_pBuffer - 1;
+	        }
+	        m_bBoundary = ( iCode & FLAG_CODEPOINT_BOUNDARY )!=0;
+	
+	        if ( iCode==0 || m_bBoundary )
+	        {
+	        	
+	        	if ( iCodePoint > 128 && !m_bBoundary ){//不是边界
+	        	    if ( m_iAccum==0 )
+	                m_pTokenStart = pCur;
+	
+	            if_const ( IS_BLEND )
+	                    if_const (!( IS_QUERY && !m_iAccum && sphIsModifier ( iCode & MASK_CODEPOINT ) ) )
+	                            m_bNonBlended = m_bNonBlended || !( iCode & FLAG_CODEPOINT_BLEND );
+	
+	            if ( m_iAccum<SPH_MAX_WORD_LEN && ( m_pAccum-m_sAccum+SPH_MAX_UTF8_BYTES<=(int)sizeof(m_sAccum) ) )
+	            {
+	                    iCodePoint &= MASK_CODEPOINT;
+	                    m_iAccum++;
+	                    SPH_UTF8_ENCODE ( m_pAccum, iCodePoint );
+	            }
+	            
+              m_pTokenEnd = pCur;
+	            FlushAccum ();
+	            return m_sAccum;		                
+	        	}
+	        	
+	                FlushAccum ();
+	                if_const ( IS_BLEND && !BlendAdjust ( pCur ) )
+	                        continue;
+	
+	                if ( m_iLastTokenLen<m_tSettings.m_iMinWordLen
+	                        && !( m_bShortTokenFilter && ShortTokenFilter ( m_sAccum, m_iLastTokenLen ) ) )
+	                {
+	                        if ( m_iLastTokenLen )
+	                                m_iOvershortCount++;
+	                        continue;
+	                        //break;
+	                }
+	        }
+	
+	        // handle specials
+	        if ( iCode & FLAG_CODEPOINT_SPECIAL )
+	        {
+	                // skip short words preceding specials
+	                if ( m_iAccum<m_tSettings.m_iMinWordLen )
+	                {
+	                        m_sAccum[m_iAccum] = '\0';
+	
+	                        if ( !m_bShortTokenFilter || !ShortTokenFilter ( m_sAccum, m_iAccum ) )
+	                        {
+	                                if ( m_iAccum )
+	                                        m_iOvershortCount++;
+	
+	                                FlushAccum ();
+	                        }
+	                }
+	
+	                if ( m_iAccum==0 )
+	                {
+	                        m_bNonBlended = m_bNonBlended || ( !( iCode & FLAG_CODEPOINT_BLEND ) && !( iCode & FLAG_CODEPOINT_SPECIAL ) );
+	                        m_bWasSpecial = !( iCode & FLAG_CODEPOINT_NGRAM );
+	                        m_pTokenStart = pCur;
+	                        m_pTokenEnd = m_pCur;
+	                        AccumCodepoint ( iCode & MASK_CODEPOINT ); // handle special as a standalone token
+	                } else
+	                {
+	                        m_pCur = pCur; // we need to flush current accum and then redo special char again
+	                        m_pTokenEnd = pCur;
+	                }
+	
+	                FlushAccum ();
+	                if_const ( IS_BLEND )
+	                {
+	                        if ( !BlendAdjust ( pCur ) )
+	                                continue;
+	                        if ( m_bBlended )
+	                                return GetBlendedVariant();
+	                }
+	                return m_sAccum;
+	        }
+	
+	        if ( m_iAccum==0 )
+	                m_pTokenStart = pCur;
+	
+	        // tricky bit
+	        // heading modifiers must not (!) affected blended status
+	        // eg. we want stuff like '=-' (w/o apostrophes) thrown away when pure_blend is on
+	        if_const ( IS_BLEND )
+	                if_const (!( IS_QUERY && !m_iAccum && sphIsModifier ( iCode & MASK_CODEPOINT ) ) )
+	                        m_bNonBlended = m_bNonBlended || !( iCode & FLAG_CODEPOINT_BLEND );
+	
+	        // just accumulate
+	        // manual inlining of utf8 encoder gives us a few extra percent
+	        // which is important here, this is a hotspot
+	        if ( m_iAccum<SPH_MAX_WORD_LEN && ( m_pAccum-m_sAccum+SPH_MAX_UTF8_BYTES<=(int)sizeof(m_sAccum) ) )
+	        {
+	                iCode &= MASK_CODEPOINT;
+	                m_iAccum++;
+	                SPH_UTF8_ENCODE ( m_pAccum, iCode );
+	        }
+	        
+	         //FlushAccum ();
+	         //return m_sAccum;
+	         
+	}
+}
+//===============================================
 
 
 
@@ -27182,7 +27461,83 @@ void CSphSource_Document::BuildRegularHits ( SphDocID_t uDocid, bool bPayload, b
 			CSphWordHit * pBlendedHit = const_cast < CSphWordHit * > ( m_tHits.First() + iBlendedHitsStart );
 			HITMAN::SetEndMarker ( &pBlendedHit->m_iWordPos );
 		}
+		
+		//==============================================================add by weiyy 2014-08-08
+		m_tState.m_iHitPos -= m_tHits.Length();
+		//==============================================================add by weiyy 2014-08-08
 	}
+	
+	//==============================================================add by weiyy 2014-08-08
+	if ( !m_tState.m_bProcessingHits )
+		m_tState.m_iBuildLastStep = 1;
+	iBlendedHitsStart = -1;
+	// index words only
+	
+	int wyy = 1;
+	while ( ( m_iMaxHits==0 || m_tHits.m_dData.GetLength()+BUILD_REGULAR_HITS_COUNT<m_iMaxHits )
+		&& ( sWord = ((CSphTokenizer_UTF8Chinese<false>*)m_pTokenizer)->GetSingleToken(&wyy) ) != NULL )
+	{
+		m_pDict->SetApplyMorph ( m_pTokenizer->GetMorphFlag() );
+
+		int iLastBlendedStart = TrackBlendedStart ( m_pTokenizer, iBlendedHitsStart, m_tHits.Length() );
+
+
+		if ( !bPayload )
+		{
+			HITMAN::AddPos ( &m_tState.m_iHitPos, m_tState.m_iBuildLastStep + m_pTokenizer->GetOvershortCount()*m_iOvershortStep );
+			if ( m_pTokenizer->GetBoundary() )
+				HITMAN::AddPos ( &m_tState.m_iHitPos, m_iBoundaryStep );
+		}
+
+		if ( BuildZoneHits ( uDocid, sWord ) )
+			continue;
+
+		if ( bGlobalPartialMatch )
+		{
+			int iBytes = strlen ( (const char*)sWord );
+			memcpy ( sBuf + 1, sWord, iBytes );
+			sBuf[0] = MAGIC_WORD_HEAD;
+			sBuf[iBytes+1] = '\0';
+			m_tHits.AddHit ( uDocid, m_pDict->GetWordIDWithMarkers ( sBuf ), m_tState.m_iHitPos );
+		}
+
+		ESphTokenMorph eMorph = m_pTokenizer->GetTokenMorph();
+		if ( m_bIndexExactWords && eMorph!=SPH_TOKEN_MORPH_GUESS )
+		{
+			int iBytes = strlen ( (const char*)sWord );
+			memcpy ( sBuf + 1, sWord, iBytes );
+			sBuf[0] = MAGIC_WORD_HEAD_NONSTEMMED;
+			sBuf[iBytes+1] = '\0';
+			m_tHits.AddHit ( uDocid, m_pDict->GetWordIDNonStemmed ( sBuf ), m_tState.m_iHitPos );
+		}
+
+		if ( m_bIndexExactWords && eMorph==SPH_TOKEN_MORPH_ORIGINAL )
+		{
+			m_tState.m_iBuildLastStep = m_pTokenizer->TokenIsBlended() ? 0 : 1;
+			continue;
+		}
+
+		SphWordID_t iWord = m_pDict->GetWordID ( sWord );
+		if ( iWord )
+		{
+			iBlendedHitsStart = iLastBlendedStart;
+			m_tHits.AddHit ( uDocid, iWord, m_tState.m_iHitPos );
+			m_tState.m_iBuildLastStep = m_pTokenizer->TokenIsBlended() ? 0 : 1;
+		} else
+			m_tState.m_iBuildLastStep = m_iStopwordStep;
+	}
+
+	m_tState.m_bProcessingHits = ( sWord!=NULL );
+
+	// mark trailing hit
+	// and compute field lengths
+	if ( !bSkipEndMarker && !m_tState.m_bProcessingHits && m_tHits.Length() )
+	{
+		CSphWordHit * pHit = const_cast < CSphWordHit * > ( m_tHits.Last() );
+		HITMAN::SetEndMarker ( &pHit->m_iWordPos );
+	}
+	//==============================================================add by weiyy 2014-08-08
+	//
 }
 
 

@@ -8477,7 +8477,8 @@ uint64_t RankerState_Expr_fn<NEED_PACKEDFACTORS, HANDLE_DUPES>::Finalize ( const
 */
 
 	uint64_t uRes = ( m_eExprType==SPH_ATTR_INTEGER )? m_pExpr->Int64Eval ( tMatch ) : m_pExpr->Int64Eval ( tMatch );
-			
+	uRes /= 10;
+	
 	m_uCurLCS = 0;
 	m_iExpDelta = -1;
 	m_iLastHitPos = -1;
@@ -8486,15 +8487,13 @@ uint64_t RankerState_Expr_fn<NEED_PACKEDFACTORS, HANDLE_DUPES>::Finalize ( const
 	for ( int i=0; i<m_iFields; i++ )
 	{
 		if (m_pWeights[i] > 1){
-			uRank += ( 2*m_uLCS[i] + ((m_uHeadHit>>i)&1) + 2*((m_uExactHit>>i)&1) );
+			uRank += ( 4*m_uLCS[i] + ((m_uHeadHit>>i)&1) + 2*((m_uExactHit>>i)&1) );
 			
-			if (m_uExactHit > 0){
-				//const BYTE * pStrings = dTag2Pools [ tMatch.m_iTag ].m_pStrings;
-				//const CSphColumnInfo & tAttr = tMatch.m_tSchema.GetAttr(9);
+			//if (m_uExactHit > 0){
 
 				//printf("tAttr:%s\n", tAttr.m_sName.cstr());
 				//printf("m_uLCS[i]:%d, m_uHeadHit: %d, m_uExactHit:%d, uRank:%u\n", m_uLCS[i], m_uHeadHit, m_uExactHit, uRank);
-			}
+			//}
 		}
 		m_uLCS[i] = 0;
 	}
