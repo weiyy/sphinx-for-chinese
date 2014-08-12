@@ -1140,6 +1140,12 @@ struct CSphWordHit
 	SphDocID_t		m_iDocID;		///< document ID
 	SphWordID_t		m_iWordID;		///< word ID in current dictionary
 	Hitpos_t		m_iWordPos;		///< word position in current document
+	
+	//=======added by weiyy
+	bool operator == (CSphWordHit& wh){
+		 return !( (wh.m_iDocID ^ m_iDocID) || (wh.m_iWordID ^ m_iWordID) );
+	}
+	//=======
 };
 
 

@@ -6905,10 +6905,12 @@ BYTE * CSphTokenizer_UTF8Chinese<IS_QUERY>::GetToken ()
                 }
                 m_bBoundary = ( iCode & FLAG_CODEPOINT_BOUNDARY )!=0;
 
-                if ( iCode==0 || (iCodePoint > 47 && iCodePoint < 58) || m_bBoundary )
+                if ( iCode==0 || m_bBoundary )
+                //if ( iCode==0 || (iCodePoint > 47 && iCodePoint < 58) || m_bBoundary )
                 {
                 	
-                	if ( (iCodePoint > 256 || (iCodePoint > 47 && iCodePoint < 58))  && (iCodePoint < 0x4e00 || iCodePoint > 0x9fbb) && !m_bBoundary ){//不是中文和边界 当做外文
+                	//if ( (iCodePoint > 256 || (iCodePoint > 47 && iCodePoint < 58))  && (iCodePoint < 0x4e00 || iCodePoint > 0x9fbb) && !m_bBoundary ){//不是中文和边界 当做外文
+		                if ( iCodePoint > 256 && (iCodePoint < 0x4e00 || iCodePoint > 0x9fbb) && !m_bBoundary ){//不是中文和边界 当做外文
 		                if_const ( IS_BLEND )
 		                        if_const (!( IS_QUERY && !m_iAccum && sphIsModifier ( iCode & MASK_CODEPOINT ) ) )
 		                                m_bNonBlended = m_bNonBlended || !( iCode & FLAG_CODEPOINT_BLEND );
@@ -6949,7 +6951,8 @@ BYTE * CSphTokenizer_UTF8Chinese<IS_QUERY>::GetToken ()
                         } else
                         {
                                 m_pTokenEnd = pCur;
-                                if(m_tDa.commonPrefixSearch((Darts::DoubleArray::key_type *)(pCur), m_pResultPair, 256, IS_QUERY ? m_pBufferMax-m_pCur-1 : m_pBufferMax-m_pCur)>0) {
+                                if(m_tDa.commonPrefixSearch((Darts::DoubleArray::key_type *)(pCur), m_pResultPair, 256, m_pBufferMax-m_pCur)>0) {
+                                //if(m_tDa.commonPrefixSearch((Darts::DoubleArray::key_type *)(pCur), m_pResultPair, 256, IS_QUERY ? m_pBufferMax-m_pCur-1 : m_pBufferMax-m_pCur)>0) {
                                         m_pCur=pCur;
                                 }
 
@@ -7013,11 +7016,18 @@ BYTE * CSphTokenizer_UTF8Chinese<IS_QUERY>::GetToken ()
                 // just accumulate
                 // manual inlining of utf8 encoder gives us a few extra percent
                 // which is important here, this is a hotspot
-                if ( m_iAccum<SPH_MAX_WORD_LEN && ( m_pAccum-m_sAccum+SPH_MAX_UTF8_BYTES<=(int)sizeof(m_sAccum) ) )
+                //if ( m_iAccum<SPH_MAX_WORD_LEN && ( m_pAccum-m_sAccum+SPH_MAX_UTF8_BYTES<=(int)sizeof(m_sAccum) ) )
                 //=====
-                //if ( m_iAccum<SPH_MAX_WORD_LEN && ( m_pAccum-m_sAccum+SPH_MAX_UTF8_BYTES<=(int)sizeof(m_sAccum) ) && (iCode > 0x40)) //'A' == 0x41
+                if ( m_iAccum<SPH_MAX_WORD_LEN && ( m_pAccum-m_sAccum+SPH_MAX_UTF8_BYTES<=(int)sizeof(m_sAccum) ) && (iCode > 0x40)) //'A' == 0x41
                 //=====
                 {
+                	//==============
+                	if ( m_iAccum !=0 && isdigit (*(BYTE*)(m_pAccum - 1)) ){
+                		m_pCur = pCur;
+		                FlushAccum ();
+		                return m_sAccum;	
+                	}
+                  //===========
                         iCode &= MASK_CODEPOINT;
                         m_iAccum++;
                         SPH_UTF8_ENCODE ( m_pAccum, iCode );
@@ -7027,19 +7037,24 @@ BYTE * CSphTokenizer_UTF8Chinese<IS_QUERY>::GetToken ()
                         //===
                 }
                 
- /*               //======
-                if ( m_iAccum<SPH_MAX_WORD_LEN && ( m_pAccum-m_sAccum+SPH_MAX_UTF8_BYTES<=(int)sizeof(m_sAccum) ) && m_iAccum==0 )
+                //======
+                if ( m_iAccum<SPH_MAX_WORD_LEN && ( m_pAccum-m_sAccum+SPH_MAX_UTF8_BYTES<=(int)sizeof(m_sAccum) ))
                 {
+                	if (m_iAccum !=0 && !isdigit (*(m_pAccum - 1))){
+                		m_pCur = pCur;
+		                FlushAccum ();
+		                return m_sAccum;	
+                	}
                         iCode &= MASK_CODEPOINT;
                         m_iAccum++;
                         SPH_UTF8_ENCODE ( m_pAccum, iCode );
 
                 }
-                else
+/*                else
                 	m_pCur = pCur;
                 FlushAccum ();
-                return m_sAccum;
-               //======  */
+                return m_sAccum;*/
+               //======  
         }
         
 //end=====================================================================
@@ -7261,23 +7276,30 @@ BYTE * CSphTokenizer_UTF8Chinese<IS_QUERY>::GetSingleToken (int* wyy)
 	        }
 	        m_bBoundary = ( iCode & FLAG_CODEPOINT_BOUNDARY )!=0;
 	
-	        if ( iCode==0 || m_bBoundary )
-	        {
-	        	
-	        	if ( iCodePoint > 128 && !m_bBoundary ){//不是边界
-	        	    if ( m_iAccum==0 )
-	                m_pTokenStart = pCur;
-	
-	            if_const ( IS_BLEND )
-	                    if_const (!( IS_QUERY && !m_iAccum && sphIsModifier ( iCode & MASK_CODEPOINT ) ) )
-	                            m_bNonBlended = m_bNonBlended || !( iCode & FLAG_CODEPOINT_BLEND );
-	
-	            if ( m_iAccum<SPH_MAX_WORD_LEN && ( m_pAccum-m_sAccum+SPH_MAX_UTF8_BYTES<=(int)sizeof(m_sAccum) ) )
-	            {
-	                    iCodePoint &= MASK_CODEPOINT;
-	                    m_iAccum++;
-	                    SPH_UTF8_ENCODE ( m_pAccum, iCodePoint );
-	            }
+          if ( iCode==0 || (iCodePoint > 47 && iCodePoint < 58) || m_bBoundary )
+          {
+          	
+          	if ( (iCodePoint > 256 || (iCodePoint > 47 && iCodePoint < 58)) && !m_bBoundary ){//不是中文和边界 当做外文
+              if_const ( IS_BLEND )
+                      if_const (!( IS_QUERY && !m_iAccum && sphIsModifier ( iCode & MASK_CODEPOINT ) ) )
+                              m_bNonBlended = m_bNonBlended || !( iCode & FLAG_CODEPOINT_BLEND );
+          	    
+          	    if ( m_iAccum==0 )
+                  m_pTokenStart = pCur;
+                 else{
+                 		m_pCur = pCur;
+		                m_pTokenEnd = pCur;
+		                FlushAccum ();
+		                return m_sAccum;
+
+                }
+
+              if ( m_iAccum<SPH_MAX_WORD_LEN && ( m_pAccum-m_sAccum+SPH_MAX_UTF8_BYTES<=(int)sizeof(m_sAccum) ) )
+              {
+                      iCodePoint &= MASK_CODEPOINT;
+                      m_iAccum++;
+                      SPH_UTF8_ENCODE ( m_pAccum, iCodePoint );
+              }
 	            
               m_pTokenEnd = pCur;
 	            FlushAccum ();
@@ -27521,7 +27543,14 @@ void CSphSource_Document::BuildRegularHits ( SphDocID_t uDocid, bool bPayload, b
 		if ( iWord )
 		{
 			iBlendedHitsStart = iLastBlendedStart;
-			m_tHits.AddHit ( uDocid, iWord, m_tState.m_iHitPos );
+			
+			CSphWordHit tHit;
+			tHit.m_iDocID = uDocid;
+			tHit.m_iWordID = iWord;
+			tHit.m_iWordPos = m_tState.m_iHitPos;
+			if ( !m_tHits.m_dData.Contains(tHit)){
+				m_tHits.AddHit ( uDocid, iWord, m_tState.m_iHitPos );
+			}
 			m_tState.m_iBuildLastStep = m_pTokenizer->TokenIsBlended() ? 0 : 1;
 		} else
 			m_tState.m_iBuildLastStep = m_iStopwordStep;

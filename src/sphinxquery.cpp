@@ -971,7 +971,7 @@ int XQParser_t::GetToken ( YYSTYPE * lvalp )
 		if ( m_pTokenizer->TokenIsBlended() )
 			m_iAtomPos--;
 		break;
-	}
+	}//for
 
 	// someone must be pending now!
 	assert ( m_iPendingType );
